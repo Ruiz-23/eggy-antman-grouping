@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>蛋仔特工小队 - 抽签系统</title>
+    <style>
+        :root {
+            --eggy-yellow: #FFD700;
+            --eggy-orange: #FFA500;
+            --eggy-blue: #87CEFA;
+            --text-dark: #333;
+        }
+        body {
+            font-family: 'Comic Sans MS', 'Microsoft YaHei', sans-serif;
+            background-color: var(--eggy-yellow);
+            /* 如果你有蛋仔背景图，可以取消下面这行的注释并把图片命名为 eggy_bg.jpg 放在同目录 */
+            /* background-image: url('eggy_bg.jpg'); background-size: cover; */
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #FF4500;
+            text-shadow: 2px 2px 0px #FFF;
+            font-size: 2.5em;
+        }
+        .setup-container {
+            background: white;
+            padding: 20px 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            border: 4px solid var(--eggy-orange);
+        }
+        select, button {
+            font-size: 1.2em;
+            padding: 10px 20px;
+            margin: 10px;
+            border-radius: 10px;
+            border: 2px solid var(--eggy-orange);
+            cursor: pointer;
+        }
+        button {
+            background-color: #FF4500;
+            color: white;
+            font-weight: bold;
+            transition: transform 0.1s;
+        }
+        button:active {
+            transform: scale(0.95);
+        }
+        .game-area {
+            display: flex;
+            width: 100%;
+            max-width: 1000px;
+            gap: 20px;
+            display: none; /* 初始隐藏 */
+        }
+        .sidebar {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 20px;
+            padding: 20px;
+            border: 4px solid var(--eggy-blue);
+            min-height: 400px;
+        }
+        .draw-area {
+            flex: 3;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            align-content: flex-start;
+        }
+        .card {
+            width: 120px;
+            height: 160px;
+            perspective: 1000px;
+            cursor: pointer;
+        }
+        .card-inner {
+            width: 100%;
+            height: 100%;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+            position: relative;
+        }
+        .card.flipped .card-inner {
+            transform: rotateY(180deg);
+        }
+        .card-front, .card-back {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            backface-visibility: hidden;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5em;
+            font-weight: bold;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+        .card-front {
+            background: linear-gradient(135deg, #FFDEAD, var(--eggy-orange));
+            color: white;
+            /* 可替换为蛋仔图标图标 eggy_icon.png */
+            content: "?";
+        }
+        .card-front::after { content: "？\A抽我!"; white-space: pre; }
+        .card-back {
+            transform: rotateY(180deg);
+            background-color: white;
+            flex-direction: column;
+        }
+        .team-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 10px;
+            font-weight: bold;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🥚 变身特工 × 蛋仔派对分组系统 🕶️</h1>
+
+    <div class="setup-container" id="setupUI">
+        <label for="studentCount"><strong>今天到场了几位小特工？</strong></label>
+        <select id="studentCount">
+            <option value="4">4 人</option>
+            <option value="5">5 人</option>
+            <option value="6">6 人</option>
+            <option value="7">7 人</option>
+            <option value="8">8 人</option>
+            <option value="9">9 人</option>
+            <option value="10">10 人</option>
+        </select>
+        <button onclick="startGame()">开始生成盲盒</button>
+    </div>
+
+    <div class="game-area" id="gameArea">
+        <div class="sidebar">
+            <h2>分组情报栏 📝</h2>
+            <div id="resultsList"></div>
+        </div>
+        <div class="draw-area" id="drawArea">
+            </div>
+    </div>
+
+    <script>
+        // 定义可行的分组策略 (满足 2-4 人一组)
+        const strategies = {
+            4: [[2, 2], [4]],
+            5: [[2, 3]],
+            6: [[2, 2, 2], [3, 3], [2, 4]],
+            7: [[2, 2, 3], [3, 4]],
+            8: [[2, 2, 2, 2], [2, 3, 3], [4, 4]],
+            9: [[3, 3, 3], [2, 3, 4]],
+            10: [[3, 3, 4], [2, 4, 4], [2, 2, 3, 3]]
+        };
+
+        const teamColors = [
+            { name: "红队", color: "#FF4D4D" },
+            { name: "蓝队", color: "#4D94FF" },
+            { name: "绿队", color: "#4DFF4D" },
+            { name: "紫队", color: "#B84DFF" },
+            { name: "黄队", color: "#FFD700" }
+        ];
+
+        let drawnCount = 0;
+
+        function startGame() {
+            const count = parseInt(document.getElementById('studentCount').value);
+            const possibleStrats = strategies[count];
+            // 随机选择一种分组策略
+            const chosenStrat = possibleStrats[Math.floor(Math.random() * possibleStrats.length)];
+            
+            // 生成队伍池
+            let pool = [];
+            for(let i = 0; i < chosenStrat.length; i++) {
+                const teamSize = chosenStrat[i];
+                for(let j = 0; j < teamSize; j++) {
+                    pool.push(teamColors[i]);
+                }
+            }
+            
+            // 打乱数组 (Fisher-Yates 洗牌算法)
+            for (let i = pool.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [pool[i], pool[j]] = [pool[j], pool[i]];
+            }
+
+            // UI 切换
+            document.getElementById('setupUI').style.display = 'none';
+            document.getElementById('gameArea').style.display = 'flex';
+            
+            renderCards(pool);
+        }
+
+        function renderCards(pool) {
+            const drawArea = document.getElementById('drawArea');
+            drawArea.innerHTML = '';
+            document.getElementById('resultsList').innerHTML = '<p>等待特工抽签...</p>';
+            drawnCount = 0;
+
+            pool.forEach((teamData, index) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <div class="card-inner">
+                        <div class="card-front"></div>
+                        <div class="card-back" style="border: 5px solid ${teamData.color}">
+                            <div style="color:${teamData.color}; font-size:1.2em;">${teamData.name}</div>
+                        </div>
+                    </div>
+                `;
+                
+                // 点击翻牌事件
+                card.onclick = function() {
+                    if(!card.classList.contains('flipped')) {
+                        card.classList.add('flipped');
+                        drawnCount++;
+                        updateSidebar(drawnCount, teamData);
+                    }
+                };
+                drawArea.appendChild(card);
+            });
+        }
+
+        function updateSidebar(studentNumber, teamData) {
+            const resultsList = document.getElementById('resultsList');
+            if(drawnCount === 1) resultsList.innerHTML = ''; // 清除提示词
+            
+            const item = document.createElement('div');
+            item.className = 'team-result';
+            item.style.backgroundColor = teamData.color;
+            item.innerText = `第 ${studentNumber} 个抽签的特工加入了：${teamData.name}`;
+            
+            // 插入到最前面，最新的抽签在最上面
+            resultsList.insertBefore(item, resultsList.firstChild);
+        }
+    </script>
+</body>
+</html>
