@@ -3,19 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>蛋仔特工小队 - 抽签系统</title>
+    <title>蚁人行动 × 蛋仔派对分组系统 - 课堂版</title>
     <style>
         :root {
             --eggy-yellow: #FFD700;
             --eggy-orange: #FFA500;
             --eggy-blue: #87CEFA;
+            --ant-quantum-blue: #4D94FF; /* 量子蓝 */
+            --ant-power-red: #FF4D4D;   /* 强力红 */
+            --ant-tech-green: #4DFF4D;   /* 科技绿 */
+            --ant-mech-purple: #B84DFF;  /* 机械紫 */
+            --ant-flight-yellow: #FFD700; /* 飞行黄 */
             --text-dark: #333;
         }
         body {
             font-family: 'Comic Sans MS', 'Microsoft YaHei', sans-serif;
             background-color: var(--eggy-yellow);
-            /* 如果你有蛋仔背景图，可以取消下面这行的注释并把图片命名为 eggy_bg.jpg 放在同目录 */
-            /* background-image: url('eggy_bg.jpg'); background-size: cover; */
+            /* --- 用户需求：启用上传的图片作为背景 --- */
+            background-image: url('eggy_bg.jpg');
+            background-size: cover;
+            background-attachment: fixed; /* 保持背景固定，效果更好 */
+            background-position: center;
             margin: 0;
             padding: 20px;
             display: flex;
@@ -26,12 +34,21 @@
             color: #FF4500;
             text-shadow: 2px 2px 0px #FFF;
             font-size: 2.5em;
+            display: flex;
+            align-items: center;
+        }
+        .header-icon {
+            width: 32px; /* 调整标题图标大小 */
+            height: 32px;
+            vertical-align: middle;
+            margin-right: 12px;
+            margin-bottom: 5px; /* 对齐文本 */
         }
         .setup-container {
-            background: white;
+            background: rgba(255, 255, 255, 0.9);
             padding: 20px 40px;
             border-radius: 20px;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
             margin-bottom: 20px;
             border: 4px solid var(--eggy-orange);
         }
@@ -55,17 +72,18 @@
         .game-area {
             display: flex;
             width: 100%;
-            max-width: 1000px;
+            max-width: 1100px;
             gap: 20px;
             display: none; /* 初始隐藏 */
         }
         .sidebar {
             flex: 1;
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.95);
             border-radius: 20px;
             padding: 20px;
             border: 4px solid var(--eggy-blue);
             min-height: 400px;
+            overflow-y: auto; /* 内容过多可滚动 */
         }
         .draw-area {
             flex: 3;
@@ -76,8 +94,8 @@
             align-content: flex-start;
         }
         .card {
-            width: 120px;
-            height: 160px;
+            width: 130px;
+            height: 170px;
             perspective: 1000px;
             cursor: pointer;
         }
@@ -108,14 +126,20 @@
         .card-front {
             background: linear-gradient(135deg, #FFDEAD, var(--eggy-orange));
             color: white;
-            /* 可替换为蛋仔图标图标 eggy_icon.png */
-            content: "?";
         }
-        .card-front::after { content: "？\A抽我!"; white-space: pre; }
+        .card-front::after { content: "？\A抽我!"; white-space: pre; font-size:1.1em; }
         .card-back {
             transform: rotateY(180deg);
             background-color: white;
             flex-direction: column;
+            padding: 10px;
+            justify-content: flex-start; /* 顶部对齐 */
+        }
+        .back-icon {
+            width: 70px; /* 调整卡片内图标大小 */
+            height: 70px;
+            border-radius: 50%; /* 圆形图标 */
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         .team-result {
             margin: 10px 0;
@@ -123,15 +147,19 @@
             border-radius: 10px;
             font-weight: bold;
             color: white;
+            text-shadow: 1px 1px 0 #333; /* 提高深色文字背景上的清晰度 */
         }
     </style>
 </head>
 <body>
 
-    <h1>🥚 变身特工 × 蛋仔派对分组系统 🕶️</h1>
+    <h1>
+        <img src="eggy_icon.png" alt="Eggy" class="header-icon"> 
+        蚁人Antman × 蛋仔派对分组系统 🕶️
+    </h1>
 
     <div class="setup-container" id="setupUI">
-        <label for="studentCount"><strong>今天到场了几位小特工？</strong></label>
+        <label for="studentCount"><strong>今天到场了几位小蚁人特工？</strong></label>
         <select id="studentCount">
             <option value="4">4 人</option>
             <option value="5">5 人</option>
@@ -141,12 +169,12 @@
             <option value="9">9 人</option>
             <option value="10">10 人</option>
         </select>
-        <button onclick="startGame()">开始生成盲盒</button>
+        <button onclick="startGame()">开始报到 (生成盲盒)</button>
     </div>
 
     <div class="game-area" id="gameArea">
         <div class="sidebar">
-            <h2>分组情报栏 📝</h2>
+            <h2>蚁人行动简报 📝</h2>
             <div id="resultsList"></div>
         </div>
         <div class="draw-area" id="drawArea">
@@ -154,7 +182,7 @@
     </div>
 
     <script>
-        // 定义可行的分组策略 (满足 2-4 人一组)
+        // 定义可行的分组策略 (保持 2-4 人一组)
         const strategies = {
             4: [[2, 2], [4]],
             5: [[2, 3]],
@@ -165,12 +193,14 @@
             10: [[3, 3, 4], [2, 4, 4], [2, 2, 3, 3]]
         };
 
-        const teamColors = [
-            { name: "红队", color: "#FF4D4D" },
-            { name: "蓝队", color: "#4D94FF" },
-            { name: "绿队", color: "#4DFF4D" },
-            { name: "紫队", color: "#B84DFF" },
-            { name: "黄队", color: "#FFD700" }
+        // --- 用户需求：将队伍文字换成不同的蛋仔角色 ---
+        // 定义新角色：名称 + 颜色 + 颜色描述
+        const eggyCharacters = [
+            { name: "量子蚁人蛋", color: "#4D94FF", colorName: "蓝色行动队" },
+            { name: "强力机甲蛋", color: "#FF4D4D", colorName: "红色行动队" },
+            { name: "科技闪电蛋", color: "#4DFF4D", colorName: "绿色行动队" },
+            { name: "机械蛋仔", color: "#B84DFF", colorName: "紫色行动队" },
+            { name: "飞行鹰蛋", color: "#FFD700", colorName: "黄色行动队" }
         ];
 
         let drawnCount = 0;
@@ -178,19 +208,18 @@
         function startGame() {
             const count = parseInt(document.getElementById('studentCount').value);
             const possibleStrats = strategies[count];
-            // 随机选择一种分组策略
             const chosenStrat = possibleStrats[Math.floor(Math.random() * possibleStrats.length)];
             
-            // 生成队伍池
+            // 生成角色池
             let pool = [];
             for(let i = 0; i < chosenStrat.length; i++) {
                 const teamSize = chosenStrat[i];
                 for(let j = 0; j < teamSize; j++) {
-                    pool.push(teamColors[i]);
+                    pool.push(eggyCharacters[i]); // 每个策略组都有相同的角色
                 }
             }
             
-            // 打乱数组 (Fisher-Yates 洗牌算法)
+            // Fisher-Yates shuffle 打乱数组
             for (let i = pool.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -203,20 +232,23 @@
             renderCards(pool);
         }
 
+        // --- 用户需求：点击翻转后跳出图片角色 ---
         function renderCards(pool) {
             const drawArea = document.getElementById('drawArea');
             drawArea.innerHTML = '';
-            document.getElementById('resultsList').innerHTML = '<p>等待特工抽签...</p>';
+            document.getElementById('resultsList').innerHTML = '<p>等待蚁人报到...</p>';
             drawnCount = 0;
 
-            pool.forEach((teamData, index) => {
+            pool.forEach((charData, index) => {
                 const card = document.createElement('div');
                 card.className = 'card';
                 card.innerHTML = `
                     <div class="card-inner">
                         <div class="card-front"></div>
-                        <div class="card-back" style="border: 5px solid ${teamData.color}">
-                            <div style="color:${teamData.color}; font-size:1.2em;">${teamData.name}</div>
+                        <div class="card-back" style="border: 5px solid ${charData.color}; justify-content:flex-start;">
+                            <img src="eggy_icon.png" alt="Eggy" class="back-icon" style="border: 4px solid ${charData.color}">
+                            <div style="color:${charData.color}; font-size:1.0em; font-weight:bold; margin-top:5px; text-shadow: 1px 1px 0 #FFF;">${charData.name}</div>
+                            <div style="color:${charData.color}; font-size:0.85em; margin-top:2px;">(${charData.colorName})</div>
                         </div>
                     </div>
                 `;
@@ -226,21 +258,22 @@
                     if(!card.classList.contains('flipped')) {
                         card.classList.add('flipped');
                         drawnCount++;
-                        updateSidebar(drawnCount, teamData);
+                        updateSidebar(drawnCount, charData);
                     }
                 };
                 drawArea.appendChild(card);
             });
         }
 
-        function updateSidebar(studentNumber, teamData) {
+        function updateSidebar(studentNumber, charData) {
             const resultsList = document.getElementById('resultsList');
             if(drawnCount === 1) resultsList.innerHTML = ''; // 清除提示词
             
             const item = document.createElement('div');
             item.className = 'team-result';
-            item.style.backgroundColor = teamData.color;
-            item.innerText = `第 ${studentNumber} 个抽签的特工加入了：${teamData.name}`;
+            item.style.backgroundColor = charData.color;
+            // 使用新的角色名称
+            item.innerText = `第 ${studentNumber} 个报到的蚁人加入了：${charData.name}（${charData.colorName}）`;
             
             // 插入到最前面，最新的抽签在最上面
             resultsList.insertBefore(item, resultsList.firstChild);
